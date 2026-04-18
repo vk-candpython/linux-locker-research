@@ -66,7 +66,7 @@
 <summary><b>📁 Click to expand: Password and Encryption Settings</b></summary>
 
 ```python
-#=================================#
+#=====================================#
 # [ OWNER ]
 #     CREATOR  : Vladislav Khudash
 #     AGE      : 17
@@ -76,7 +76,7 @@
 #     DATE     : 03.03.2026
 #     PROJECT  : LINUX-LOCKER-RESEARCH
 #     PLATFORM : LINUX
-#=================================#
+#=====================================#
 
 #
 #-
