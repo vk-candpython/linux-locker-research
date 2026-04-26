@@ -128,6 +128,8 @@ python -c "from hashlib import sha256;print(sha256('MySecretPassword'.encode()).
 # Output: 8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92
 ```
 
+**What it configures:** The lock screen password (SHA-256 hash), toggle for optional user file encryption, and the ASCII art banner displayed on the TTY lock screen.
+
 </details>
 
 ---
@@ -216,6 +218,8 @@ if SUDO is None:
 - If `DISPLAY` or `WAYLAND_DISPLAY` is set → use `pkexec` (GUI)
 - Otherwise → use `sudo` (terminal)
 
+**What it initializes:** All system paths for installation, encryption parameters (128MB max file size, 8-byte nonce, SHA-256 key derivation), user home directories for encryption targets, and the privilege escalation binary (pkexec for GUI, sudo for TTY).
+
 </details>
 
 ---
@@ -249,6 +253,8 @@ def get_distribution():
 - SUSE-based: `opensuse`, `opensuse-leap`, `opensuse-tumbleweed`
 - Other: `void`
 
+**What it does:** Parses `/etc/os-release` to detect the Linux distribution — critical for running the correct GRUB update and initramfs rebuild commands for each distro.
+
 ### 3.2 cmd() — Execute Shell Command
 
 ```python
@@ -258,6 +264,8 @@ def cmd(c, _new=False):
     except:
         return -1
 ```
+
+**What it does:** Silent command execution returning exit codes — used for systemctl, chattr, mount, stty, and package manager commands throughout the setup and teardown process.
 
 ### 3.3 get_root() — Obtain Root Privileges
 
@@ -277,6 +285,8 @@ def get_root():
 1. Check if already running with `--root` flag
 2. Spawn new process with `sudo` or `pkexec`
 3. Exit current process
+
+**What it does:** Elevates to root via sudo (TTY) or pkexec (GUI), spawns a new process with the `--root` flag, and exits the non-privileged process.
 
 </details>
 
@@ -324,6 +334,8 @@ def update_grub():
 | OpenSUSE | `grub2-mkconfig -o /boot/grub2/grub.cfg` |
 | Void | `update-grub` or `grub-mkconfig` |
 
+**What it does:** Cross-distribution GRUB configuration generator — detects the distro and runs the appropriate command to regenerate grub.cfg with the modified `/etc/default/grub` settings.
+
 ### 4.2 update_initramfs() — Update Initramfs
 
 ```python
@@ -359,6 +371,8 @@ def update_initramfs():
 | OpenSUSE | `mkinitrd` |
 | Void | `xbps-reconfigure -fa` |
 
+**What it does:** Rebuilds the initramfs for all installed kernels — ensures the module blacklist and kernel command line changes take effect on next boot.
+
 ### 4.3 disable_net() — Disable Network Interfaces
 
 ```python
@@ -368,6 +382,8 @@ def disable_net():
         cmd(['ifconfig', n, 'down'])
         cmd(['ip', 'addr', 'flush', n])
 ```
+
+**What it disables:** All network interfaces — brings every interface down via both `ip link` and `ifconfig`, then flushes all IP addresses. Prevents any network communication while the system is locked.
 
 </details>
 
@@ -421,6 +437,8 @@ def enc(handle):
 - **Nonce-based**: Each file gets unique nonce (or random if not set)
 - **ChaCha20-inspired**: Counter mode with SHA-256 as PRF
 
+**What it does:** XOR-encrypts file contents via memory-mapped I/O using a SHA-256-based stream cipher — reads and writes directly to memory without loading entire files. Generates unique nonce per file.
+
 ### 5.2 encrypt_file() — Encrypt Single File
 
 ```python
@@ -449,6 +467,8 @@ def encrypt_file(path):
 3. Write 8-byte `ENCRYPTION_MARK` signature
 4. Encrypt remainder of file using `enc()`
 
+**What it encrypts:** A single user file — strips Linux file attributes, checks for existing encryption mark (prevents double encryption), writes the 8-byte signature, then XOR-encrypts the rest of the file.
+
 ### 5.3 encrypt() — Recursive Directory Encryption
 
 ```python
@@ -465,6 +485,8 @@ def encrypt(root_path):
             except:
                 continue
 ```
+
+**What it encrypts:** All user files recursively under `/home/*`, `/media/*`, and `/mnt/*` — skips files larger than 128MB. Encrypts documents, pictures, configs, and other personal files while the lock screen is displayed.
 
 </details>
 
@@ -640,6 +662,8 @@ HandleLidSwitch=ignore
 | Webcam | `uvcvideo`, `gspca_main` |
 | Storage | `mmc_block`, `fuse`, `nbd` |
 
+**What it does on first run:** Installs the locker to `/etc/linlocker/`, overwrites GRUB config with disabled recovery/quiet boot/custom kernel cmdline, blacklists 40+ kernel modules (USB, network, sound, webcam), creates a getty override for auto-root-login that launches the locker instead of a shell, disables Ctrl+Alt+Del and all power/suspend keys in logind, switches to multi-user.target (text mode), disables NetworkManager, reboots. After reboot, the system boots directly into the lock screen.
+
 </details>
 
 ---
@@ -672,6 +696,8 @@ def shell():
 1. Clear screen
 2. If `ENCRYPTION=True`, encrypt all user directories
 3. Enter infinite loop showing welcome/password prompt
+
+**What it does:** The main lock screen loop — clears the terminal, optionally encrypts all user files from /home, /media, and /mnt, then loops infinitely showing the password prompt. If the welcome screen crashes, it restarts after a brief delay.
 
 </details>
 
@@ -710,6 +736,8 @@ def welcome():
 4. If match → restore system (`destroy()`)
 5. If "exit" → power off
 6. Otherwise → wait 3 seconds and retry
+
+**What it presents:** The TTY lock screen — clears the terminal, prints the ASCII art banner, prompts for password with hidden input, verifies against SHA-256 hash. Correct password triggers system restoration. Wrong password shows nothing and waits 3 seconds. Typing "exit" powers off the machine.
 
 </details>
 
@@ -792,6 +820,8 @@ GRUB_CMDLINE_LINUX=""
 | 11 | Create `requirement.txt` | Leave ransom note (if encryption was enabled) |
 | 12 | Reboot | Restart system |
 
+**What it restores:** Removes the immutable protection from all config files, deletes the entire `/etc/linlocker` directory, restores GRUB to a clean state, removes the module blacklist, restores logind.conf, removes the getty autologin override, switches back to graphical.target, enables NetworkManager, leaves a ransom note in each user's home directory (if encryption was active), and reboots to a clean system.
+
 </details>
 
 ---
@@ -846,6 +876,8 @@ def init_proc():
 | Real-time priority | `chrt -f 80` | SCHED_FIFO with priority 80 |
 | OOM protection | `oom_score_adj=-1000` | Never killed by OOM killer |
 | Ptrace scope | `ptrace_scope=2` | Only root can ptrace |
+
+**What it does:** Hardens the lock screen process — hides all processes from other users, sets maximum priority (nice -20, SCHED_FIFO 80), disables core dumps and ptrace, renames the process to "[kworker/X:Y]" to look like a kernel worker, bind-mounts /dev/null over /proc/PID/cmdline and comm to hide execution details, makes the process immune to OOM killer, and restricts ptrace to root only.
 
 </details>
 
@@ -921,6 +953,8 @@ if __name__ == '__main__': main()
 5. Detect distribution
 6. If already installed (`FILE_FLAG` exists) → run `shell()`
 7. Otherwise → run `init()` to install
+
+**What it does:** The main entry point — validates all configuration, escalates to root, hardens the process, disables all terminal escape sequences (Ctrl+C, Ctrl+Z, Ctrl+D, Ctrl+S, signals), detects the Linux distribution, then branches: first run triggers system lockdown installation + reboot, subsequent boots launch the lock screen loop.
 
 </details>
 
